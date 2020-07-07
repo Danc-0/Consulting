@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "770991306877",
+    "firebase_url": "https://consulting-dbaec.firebaseio.com",
+    "project_id": "consulting-dbaec",
+    "storage_bucket": "consulting-dbaec.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:770991306877:android:e394c3ef04f644814f5914",
+        "android_client_info": {
+          "package_name": "com.danc.consulting"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "770991306877-1vqv6psfpadlgr4la1nqchvmama1k85k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.danc.consulting",
+            "certificate_hash": "a4b96c4ae0e90d9a381e3ca4e4e5614bb19f06eb"
+          }
+        },
+        {
+          "client_id": "770991306877-f6v9q3760jnpp7pjk8tgjhboel5b1spb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBbCVMvS818hdg24_w0jhTzRSf551EhsM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "770991306877-f6v9q3760jnpp7pjk8tgjhboel5b1spb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

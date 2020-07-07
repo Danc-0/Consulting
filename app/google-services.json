@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "861287936452",
+    "firebase_url": "https://fir-example-39638.firebaseio.com",
+    "project_id": "fir-example-39638",
+    "storage_bucket": "fir-example-39638.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:861287936452:android:b6c8c6202c43628bd9b491",
+        "android_client_info": {
+          "package_name": "com.danc.consulting"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "861287936452-u1m2nuo25sbprhd39el0h6hvildvpsuu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPeULZYyUM7VStc9ndf92eJXxnCF8arCk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "861287936452-u1m2nuo25sbprhd39el0h6hvildvpsuu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
