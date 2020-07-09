@@ -80,4 +80,6 @@
     <string name="employee_dashboard">Employee Dashboard</string>
     <string name="this_weeks_initiative">This weeks initiative</string>
     <string name="sign_in">Sign In</string>
+    <string name="choose_photo_from_memory">Choose photo from memory</string>
+    <string name="take_a_photo">Take a Photo</string>
 </resources>

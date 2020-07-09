@@ -1,12 +1,19 @@
 package com.danc.consulting;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -14,10 +21,14 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.danc.consulting.models.User;
+import com.danc.consulting.utility.FilePaths;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.EmailAuthProvider;
@@ -30,29 +41,50 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.OnProgressListener;
+import com.google.firebase.storage.StorageMetadata;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 
-public class SettingsActivity extends AppCompatActivity {
+public class SettingsActivity extends AppCompatActivity implements ChangePhotoDialog.OnPhotoReceivedListener {
 
     private static final String TAG = "SettingsActivity";
-
-    private static final String DOMAIN_NAME = "gmail.com";
 
     //firebase
     private FirebaseAuth.AuthStateListener mAuthListener;
 
     //widgets
+    private ImageView mProfileImage;
     private EditText mName, mPhone;
     private EditText mEmail, mCurrentPassword;
     private Button mSave;
     private ProgressBar mProgressBar;
     private TextView mResetPasswordLink;
 
+    //vars
+    private boolean mStoragePermissions;
+    private Uri mSelectedImageUri;
+    private Bitmap mSelectedImageBitmap;
+    private byte[] mBytes;
+    private double progress;
+
+    private static final String DOMAIN_NAME = "gmail.com";
+    private static final int REQUEST_CODE = 1234;
+    private static final double MB_THRESHHOLD = 5.0;
+    private static final double MB = 1000000.0;
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
         Log.d(TAG, "onCreate: started.");
+
+        mProfileImage = findViewById(R.id.profile_image);
         mEmail = (EditText) findViewById(R.id.input_email);
         mName = findViewById(R.id.input_name);
         mPhone = findViewById(R.id.input_phone);
@@ -119,9 +151,22 @@ public class SettingsActivity extends AppCompatActivity {
             }
         });
 
+        mProfileImage.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (mStoragePermissions) {
+                    ChangePhotoDialog dialog = new ChangePhotoDialog();
+                    dialog.show(getSupportFragmentManager(), getString(R.string.dialog_change_photo));
+                } else {
+                    verifyStoragePermissions();
+                }
+
+            }
+        });
 
         hideSoftKeyboard();
     }
+
 
     private void sendResetPasswordLink() {
         FirebaseAuth.getInstance().sendPasswordResetEmail(FirebaseAuth.getInstance().getCurrentUser().getEmail())
@@ -370,7 +415,7 @@ public class SettingsActivity extends AppCompatActivity {
             }
         };
     }
-    
+
     public void getUserAccountData() {
         Log.d(TAG, "getUserAccountData: get User Details");
 
@@ -424,6 +469,206 @@ public class SettingsActivity extends AppCompatActivity {
         mEmail.setText(FirebaseAuth.getInstance().getCurrentUser().getEmail());
     }
 
+
+    /**
+     * Uploads a new profile photo to Firebase Storage using a @param ***imageUri***
+     *
+     * @param imageUri
+     */
+    public void uploadNewPhoto(Uri imageUri) {
+        /*
+            upload a new profile photo to firebase storage
+         */
+        Log.d(TAG, "uploadNewPhoto: uploading new profile photo to firebase storage.");
+
+        //Only accept image sizes that are compressed to under 5MB. If thats not possible
+        //then do not allow image to be uploaded
+        BackgroundImageResize resize = new BackgroundImageResize(null);
+        resize.execute(imageUri);
+    }
+
+    /**
+     * Uploads a new profile photo to Firebase Storage using a @param ***imageBitmap***
+     *
+     * @param imageBitmap
+     */
+    public void uploadNewPhoto(Bitmap imageBitmap) {
+        /*
+            upload a new profile photo to firebase storage
+         */
+        Log.d(TAG, "uploadNewPhoto: uploading new profile photo to firebase storage.");
+
+        //Only accept image sizes that are compressed to under 5MB. If thats not possible
+        //then do not allow image to be uploaded
+        BackgroundImageResize resize = new BackgroundImageResize(imageBitmap);
+        Uri uri = null;
+        resize.execute(uri);
+    }
+
+    /**
+     * 1) doinBackground takes an imageUri and returns the byte array after compression
+     * 2) onPostExecute will print the % compression to the log once finished
+     */
+    public class BackgroundImageResize extends AsyncTask<Uri, Integer, byte[]> {
+
+        Bitmap mBitmap;
+
+        public BackgroundImageResize(Bitmap bm) {
+            if (bm != null) {
+                mBitmap = bm;
+            }
+        }
+
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+            showDialog();
+            Toast.makeText(SettingsActivity.this, "compressing image", Toast.LENGTH_SHORT).show();
+        }
+
+        @Override
+        protected byte[] doInBackground(Uri... params) {
+            Log.d(TAG, "doInBackground: started.");
+
+            if (mBitmap == null) {
+
+                try {
+                    mBitmap = MediaStore.Images.Media.getBitmap(SettingsActivity.this.getContentResolver(), params[0]);
+                    Log.d(TAG, "doInBackground: bitmap size: megabytes: " + mBitmap.getByteCount() / MB + " MB");
+                } catch (IOException e) {
+                    Log.e(TAG, "doInBackground: IOException: ", e.getCause());
+                }
+            }
+
+            byte[] bytes = null;
+            for (int i = 1; i < 11; i++) {
+                if (i == 10) {
+                    Toast.makeText(SettingsActivity.this, "That image is too large.", Toast.LENGTH_SHORT).show();
+                    break;
+                }
+                bytes = getBytesFromBitmap(mBitmap, 100 / i);
+                Log.d(TAG, "doInBackground: megabytes: (" + (11 - i) + "0%) " + bytes.length / MB + " MB");
+                if (bytes.length / MB < MB_THRESHHOLD) {
+                    return bytes;
+                }
+            }
+            return bytes;
+        }
+
+
+        @Override
+        protected void onPostExecute(byte[] bytes) {
+            super.onPostExecute(bytes);
+            hideDialog();
+            mBytes = bytes;
+            //execute the upload
+            executeUploadTask();
+        }
+    }
+
+    // convert from bitmap to byte array
+    public static byte[] getBytesFromBitmap(Bitmap bitmap, int quality) {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream);
+        return stream.toByteArray();
+    }
+
+    private void executeUploadTask() {
+        showDialog();
+        FilePaths filePaths = new FilePaths();
+
+        //specify where the photo will be stored
+        final StorageReference storageReference = FirebaseStorage.getInstance().getReference()
+                .child(filePaths.FIREBASE_IMAGE_STORAGE + "/" + FirebaseAuth.getInstance().getCurrentUser().getUid()
+                        + "/profile_image"); //just replace the old image with the new one
+
+        if (mBytes.length / MB < MB_THRESHHOLD) {
+
+            // Create file metadata including the content type
+            StorageMetadata metadata = new StorageMetadata.Builder()
+                    .setContentType("image/jpg")
+                    .setContentLanguage("en") //see nodes below
+                    /*
+                    Make sure to use proper language code ("English" will cause a crash)
+                    I actually submitted this as a bug to the Firebase github page so it might be
+                    fixed by the time you watch this video. You can check it out at https://github.com/firebase/quickstart-unity/issues/116
+                     */
+                    .setCustomMetadata("Mitch's special meta data", "JK nothing special here")
+                    .setCustomMetadata("location", "Iceland")
+                    .build();
+            //if the image size is valid then we can submit to database
+            UploadTask uploadTask = null;
+            uploadTask = storageReference.putBytes(mBytes, metadata);
+            //uploadTask = storageReference.putBytes(mBytes); //without metadata
+
+
+            uploadTask.addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                @Override
+                public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                    //Now insert the download url into the firebase database
+//                    Uri firebaseURL = taskSnapshot.getDownloadUrl();
+                    Uri firebaseURL = taskSnapshot.getUploadSessionUri();
+                    Toast.makeText(SettingsActivity.this, "Upload Success", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "onSuccess: firebase download url : " + firebaseURL.toString());
+                    FirebaseDatabase.getInstance().getReference()
+                            .child(getString(R.string.dbnode_users))
+                            .child(FirebaseAuth.getInstance().getCurrentUser().getUid())
+                            .child(getString(R.string.field_profile_image))
+                            .setValue(firebaseURL.toString());
+
+                    hideDialog();
+                }
+            }).addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception exception) {
+                    Toast.makeText(SettingsActivity.this, "could not upload photo", Toast.LENGTH_SHORT).show();
+
+                    hideDialog();
+
+                }
+            }).addOnProgressListener(new OnProgressListener<UploadTask.TaskSnapshot>() {
+                @Override
+                public void onProgress(UploadTask.TaskSnapshot taskSnapshot) {
+                    double currentProgress = (100 * taskSnapshot.getBytesTransferred()) / taskSnapshot.getTotalByteCount();
+                    if (currentProgress > (progress + 15)) {
+                        progress = (100 * taskSnapshot.getBytesTransferred()) / taskSnapshot.getTotalByteCount();
+                        Log.d(TAG, "onProgress: Upload is " + progress + "% done");
+                        Toast.makeText(SettingsActivity.this, progress + "%", Toast.LENGTH_SHORT).show();
+                    }
+
+                }
+            })
+            ;
+        } else {
+            Toast.makeText(this, "Image is too Large", Toast.LENGTH_SHORT).show();
+        }
+
+    }
+
+    /**
+     * Generalized method for asking permission. Can pass any array of permissions
+     */
+    public void verifyStoragePermissions() {
+        Log.d(TAG, "verifyPermissions: asking user for permissions.");
+        String[] permissions = {android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.CAMERA};
+        if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
+                permissions[0]) == PackageManager.PERMISSION_GRANTED
+                && ContextCompat.checkSelfPermission(this.getApplicationContext(),
+                permissions[1]) == PackageManager.PERMISSION_GRANTED
+                && ContextCompat.checkSelfPermission(this.getApplicationContext(),
+                permissions[2]) == PackageManager.PERMISSION_GRANTED) {
+            mStoragePermissions = true;
+        } else {
+            ActivityCompat.requestPermissions(
+                    SettingsActivity.this,
+                    permissions,
+                    REQUEST_CODE
+            );
+        }
+    }
+
     @Override
     public void onStart() {
         super.onStart();
@@ -435,6 +680,26 @@ public class SettingsActivity extends AppCompatActivity {
         super.onStop();
         if (mAuthListener != null) {
             FirebaseAuth.getInstance().removeAuthStateListener(mAuthListener);
+        }
+    }
+
+    @Override
+    public void getImagePath(Uri imagePath) {
+        if (!imagePath.toString().equals("")) {
+            mSelectedImageBitmap = null;
+            mSelectedImageUri = imagePath;
+            Log.d(TAG, "getImagePath: got the image uri: " + mSelectedImageUri);
+
+        }
+
+    }
+
+    @Override
+    public void getImageBitmap(Bitmap bitmap) {
+        if (bitmap != null) {
+            mSelectedImageUri = null;
+            mSelectedImageBitmap = bitmap;
+            Log.d(TAG, "getImageBitmap: got the image bitmap: " + mSelectedImageBitmap);
         }
     }
 }
