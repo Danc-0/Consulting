@@ -14,7 +14,9 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.danc.consulting.models.User;
 import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
@@ -24,7 +26,7 @@ import com.google.firebase.database.FirebaseDatabase;
 
 public class RegisterActivity extends AppCompatActivity {
 
-    FirebaseDatabase mFireBaseDatabase;
+    Task<Void> mFireBaseDatabase;
     DatabaseReference mDatabaseReference;
     FirebaseAuth mAuth;
 
@@ -40,8 +42,6 @@ public class RegisterActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
 
-        mFireBaseDatabase = FirebaseDatabase.getInstance();
-        mDatabaseReference = mFireBaseDatabase.getReference();
         mAuth = FirebaseAuth.getInstance();
 
         mEmail = findViewById(R.id.email);
@@ -86,16 +86,39 @@ public class RegisterActivity extends AppCompatActivity {
         });
     }
 
-    public void registerNewEmail(String email, String password) {
+    public void registerNewEmail(final String email, String password) {
         mAuth.createUserWithEmailAndPassword(email, password).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
             @Override
             public void onComplete(@NonNull Task<AuthResult> task) {
                 if (task.isSuccessful()) {
                     showDialog();
-                    Toast.makeText(RegisterActivity.this, "Successful registration", Toast.LENGTH_SHORT).show();
+
+                    //Sends Verification Email
                     sendEmailVerification();
-                    mAuth.signOut();
-                    redirectToLoginScreen();
+
+                    //Adds this Data to the Database for the current user
+                    User user = new User();
+                    user.setName(email.substring(0, email.indexOf("@")));
+                    user.setPhone("1");
+                    user.setProfile_image("");
+                    user.setSecurity_level("1");
+                    user.setUser_id(mAuth.getCurrentUser().getUid());
+                    mFireBaseDatabase = FirebaseDatabase.getInstance().getReference()
+                            .child(getString(R.string.dbnode_users))
+                            .child(mAuth.getCurrentUser().getUid())
+                            .setValue(user).addOnCompleteListener(new OnCompleteListener<Void>() {
+                                @Override
+                                public void onComplete(@NonNull Task<Void> task) {
+                                    mAuth.signOut();
+                                    redirectToLoginScreen();
+                                }
+                            }).addOnFailureListener(new OnFailureListener() {
+                                @Override
+                                public void onFailure(@NonNull Exception e) {
+                                    Toast.makeText(RegisterActivity.this, "Something went wrong", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+
                 } if (!task.isSuccessful()){
                     hideDialog();
                     Toast.makeText(RegisterActivity.this, "Unable to register", Toast.LENGTH_SHORT).show();
