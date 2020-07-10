@@ -82,4 +82,8 @@
     <string name="sign_in">Sign In</string>
     <string name="choose_photo_from_memory">Choose photo from memory</string>
     <string name="take_a_photo">Take a Photo</string>
+
+    <!-- Strings -->
+    <string name="alert_dialog_delete">DELETE</string>
+    <string name="alert_dialog_cancel">Cancel</string>
 </resources>
